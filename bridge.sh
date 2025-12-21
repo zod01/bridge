@@ -10,6 +10,9 @@
 
 source /etc/os-release
 
+set +u
+IFS=$' \t\n'
+
 trap 'rm -- "$0"' EXIT
 
 # Define color codes
