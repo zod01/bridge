@@ -10,6 +10,8 @@
 
 source /etc/os-release
 
+trap 'rm -- "$0"' EXIT
+
 # Define color codes
 RED="\033[0;31m"
 GREEN="\033[0;32m"
@@ -428,7 +430,8 @@ if [[ "$ID" == "almalinux" || "$ID" == "rocky" || "$ID" == "centos" ]]
 then
   log INFO "Rolling back NetworkManager configuration..."
   nmcli connection down viifbr0
-  nmcli connection modify "${CON_NAME}" connection.master "" connection.slave-type ""
+  #nmcli connection modify "${CON_NAME}" connection.master "" connection.slave-type ""
+  eval 'nmcli connection modify "System eth0" connection.master "" connection.slave-type ""'
   nmcli connection up "${CON_NAME}"
   nmcli connection delete viifbr0
   log SUCCESS "Rolled backed to previous configuration"
