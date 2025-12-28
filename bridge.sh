@@ -2,16 +2,13 @@
 
 #
 # Author: Aman Shaikh
-# Version: 2.2
+# Version: 2.1
 # Description: Interactive script to configure a Linux bridge on Ubuntu (Netplan)
 #              or AlmaLinux (nmcli), with ipcalc check and color-coded output.
 
 
 
 source /etc/os-release
-
-set +u
-IFS=$' \t\n'
 
 trap 'rm -- "$0"' EXIT
 
@@ -35,7 +32,7 @@ log() {
   case "$level" in 
     INFO)     echo -e "${BLUE}ℹ ${NC} $message" ;;
     SUCCESS)  echo -e "${GREEN}✓${NC} $message" ;;
-    WARN)     echo -e "${YELLO}"⚠ ${NC}   $message ;;
+    WARN)     echo -e "${YELLOW}"⚠ ${NC}   $message ;;
     ERROR)   echo -e "${RED}✗${NC}  $message" ;;
     STEP)    echo -e "\n${CYAN}${BOLD}▸ $message${NC}" ;;
   esac
@@ -102,7 +99,7 @@ fi
 
 
 # Checking IPv6
-log SETP "checking IPv6 configuration"
+log STEP "checking IPv6 configuration"
 IPV6_ADDR=""
 IPV6_GW=""
 
@@ -145,7 +142,7 @@ then
   if [[ "$NETMASK" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]
   then
 	CIDR=$(ipcalc $IP $NETMASK | awk '/Netmask/ {print $4}')
-  log INFO "Netmask: $Netmask (CIDR: /$CIDR)"
+  log INFO "Netmask: $NETMASK (CIDR: /$CIDR)"
   break
 else
   log ERROR "Invalid netmask format. Please try again."
@@ -290,9 +287,11 @@ setup_bridge_rhel() {
   log STEP "Configuring RHEL-based Bridge with NetworkManager"
 
     CON_NAME=$(nmcli -t -f NAME,DEVICE connection show | grep ":$IFACE" | cut -d: -f1)
+    log INFO "Connection name: $CON_NAME"
 
     nmcli connection add type bridge con-name viifbr0 ifname viifbr0 autoconnect yes
-    nmcli connection modify viifbr0 ipv4.addresses $IP_NET ipv4.gateway $GW ipv4.dns '8.8.8.8'  ipv4.method manual
+    nmcli connection modify viifbr0 ipv4.addresses "$IP_NET" ipv4.gateway "$GW" ipv4.dns '8.8.8.8'  ipv4.method manual
+
     if [[ -n "$IPV6_ADDR" ]]; then
     nmcli connection modify viifbr0 ipv6.addresses "$IPV6_ADDR" ipv6.gateway "$IPV6_GW" ipv6.method manual ipv6.dns "2001:4860:4860::8888"
 else
@@ -303,7 +302,7 @@ fi
     nmcli connection up viifbr0
     nmcli connection up "$CON_NAME"
 
-    log SUCCESS "Bridge created successfully via NetworkManager $ID:"
+    log SUCCESS "Bridge created successfully $ID:"
 }
 
 hetzner_rhel() {
@@ -323,7 +322,7 @@ else
 	nmcli connection up viifbr0
 	nmcli connection up "$CON_NAME"
 
-  log SUCCESS "Hetzner bridge created successfully $ID:"
+  log SUCCESS "Bridge created successfully $ID:"
 
 }
 
@@ -434,7 +433,7 @@ then
   log INFO "Rolling back NetworkManager configuration..."
   nmcli connection down viifbr0
   #nmcli connection modify "${CON_NAME}" connection.master "" connection.slave-type ""
-  eval 'nmcli connection modify "System eth0" connection.master "" connection.slave-type ""'
+  eval 'nmcli connection modify "${CON_NAME}" connection.master "" connection.slave-type ""'
   nmcli connection up "${CON_NAME}"
   nmcli connection delete viifbr0
   log SUCCESS "Rolled backed to previous configuration"
