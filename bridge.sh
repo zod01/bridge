@@ -358,74 +358,90 @@ else
 fi
 
 
-
-
 ##########################################################################################################
 
 #                                      ROLLBACK
 
 ##########################################################################################################
 
-ROLLBACK_WAIT=${ROLLBACK_WAIT:-15}
+# Waiting for viifbr0 stable
+if [[ "$ID" == "almalinux" || "$ID" == "centos" || "$ID" == "rocky" ]]
+then
+  ROLLBACK_WAIT=${ROLLBACK_WAIT:-30}
+  log WARN "Waiting $ROLLBACK_WAIT"
+else
+  ROLLBACK_WAIT=${ROLLBACK_WAIT:-15}
+fi
+
 TEST_HOST=${TEST_HOST:-8.8.8.8}
 
-log STEP "Starting Connectivity Test (${ROLLBACK_WAIT}s)"
+log STEP "Starting Connectivity Test (${ROLLBACK_WAIT}s Stabilization)"
 echo ""
 echo -e "${YELLOW}⏳ Waiting ${ROLLBACK_WAIT} seconds before testing connectivity...${NC}"
 
+# Visual countdown
 for ((i=$ROLLBACK_WAIT; i>0; i--)); do
-     printf "\r${CYAN}Time remaining: %2ds${NC}" $i
-     sleep 1
+  printf "\r${CYAN}Time remaining: %2ds${NIC}" $i
+  sleep 1
 done
 echo ""
 
-log INFO "Testing connectivity to $TEST_HOST"
+# Progressive connectivity test with multiple attemptS
+CONNECTION_OK=0
+for attempt in {1..3}; do
+  if ping -W 3 -c 2 "${TEST_HOST}" >/dev/null 2>&1; then
+    CONNECTION_OK=1
+    log SUCCESS "Connectivity test passed (attempt $attempt/3)"
+    break
+  else
+    log WARN "Ping attempt $attempt/3 failed, retrying..."
+    sleep 3
+  fi
+done
 
-# connectivity test
-if ping -W 2 -c 3 "${TEST_HOST}" >/dev/null 2>&1; then
-  log SUCCESS "bridge is up and reachable vai $TEST_HOST"
-
-    echo ""
-    echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║                                                        ║${NC}"
-    echo -e "${GREEN}║  ✓ Bridge Configuration Successful!                    ║${NC}"
-    echo -e "${GREEN}║                                                        ║${NC}"
-    echo -e "${GREEN}║  Bridge Name: viifbr0                                  ║${NC}"
-    echo -e "${GREEN}║  Interface: $IFACE${BLUE}"
-    echo -e "${GREEN}║                                                        ║${NC}"
-    echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
+# If connectivity is good, show success and exit
+if [[ $CONNECTION_OK -eq 1 ]]
+then
+  echo ""
+  echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
+  echo -e "${GREEN}║                                                        ║${NC}"
+  echo -e "${GREEN}║  ✓ Bridge Configuration Successful!                    ║${NC}"
+  echo -e "${GREEN}║                                                        ║${NC}"
+  echo -e "${GREEN}║  Bridge Name: viifbr0                                  ║${NC}"
+  echo -e "${GREEN}║  Interface: $IFACE${BLUE}"
+  echo -e "${GREEN}║                                                        ║${NC}"
+  echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
   exit 0
 fi
 
-log ERROR "Connectivity test failed, initiating rollback"
+# if connectivity failed
+log ERROR "Connectivity test failed after 3 attempts, initiating rollback"
 
-    echo ""
-    echo -e "${RED}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${RED}║  ⚠ CONNECTIVITY TEST FAILED                            ║${NC}"
-    echo -e "${RED}║  Rolling back to previous configuration...             ║${NC}"
-    echo -e "${RED}╚════════════════════════════════════════════════════════╝${NC}"
-    echo ""
+echo ""
+echo -e "${RED}╔════════════════════════════════════════════════════════╗${NC}"
+echo -e "${RED}║  ⚠ CONNECTIVITY TEST FAILED                            ║${NC}"
+echo -e "${RED}║  Rolling back to previous configuration...             ║${NC}"
+echo -e "${RED}╚════════════════════════════════════════════════════════╝${NC}"
+echo ""
 
-# Ubuntu restore 
-
-if [[ "$ID" == "ubuntu" ]]
+# Ubunut restore
+if [[ "$ID" == ubuntu ]]
 then
-  BACKUP="/etc/netplan/${NETPLAN}-bak" 2>/dev/null
-    if [[ -z $BACKUP ]]
-      then 
-        log ERROR "No backup yaml found - cannot roll back"
-        exit 2 
-    fi
-  log INFO "Restoring $BACKUP → ${NETPLAN}"
-  cp --archive "$BACKUP" "/etc/netplan/${NETPLAN}"
-  netplan apply
-  ip link delete dev viifbr0
-  rm -rf $BACKUP
-  log SUCCESS "Rolled backed to previous configuration"
-  echo -e "${YELLOW}Please investigate the issue${NC}"
-  exit 2
-fi
-
+  BACKUP="/etc/netplan/${NETPLAN}-bak"
+  if [[ ! -f "$BACKUP" ]]
+  then
+    log ERROR "No backup .yaml found - connont rollback"
+    exit 2
+  fi
+    log INFO "Restoring $BACKUP → ${NETPLAN}"
+    cp --archive "$BACKUP" "/etc/netplan/${NETPLAN}"
+    netplan apply
+    ip link delete dev viifbr0
+    rm -rf $BACKUP
+    log SUCCESS "Rolled backed to previous configuration"
+    echo -e "${YELLOW}Please investigate the issue${NC}"
+    exit 2
+fi 
 
 # RHEL rollback
 if [[ "$ID" == "almalinux" || "$ID" == "rocky" || "$ID" == "centos" ]]
