@@ -395,7 +395,7 @@ else
 fi
 }
 
-# OVH/Hetzner netplan
+# Hetzner netplan
 hetzner_netplan() {
 
 log STEP "Starting Ubuntu bridge with Netplan..."
