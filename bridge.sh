@@ -225,6 +225,8 @@ else
 	exit 1
 fi
 
+echo -e "${GREEN} Bridge created successfully on $ID $VERSION"
+
 }
 
 hetzner() {
@@ -280,6 +282,9 @@ else
 	rm -f "$TEMP_CONFIG"
 	exit 1
 fi
+
+echo -e "${GREEN} Bridge created successfully on $ID $VERSION"
+
 }
 
 ovh() {
@@ -334,7 +339,167 @@ else
 	echo -e "${RED} Failed to apply netplan"
 	rm -f "$TEMP_CONFIG"
 	exit 1
+
+
+echo -e "${GREEN} Bridge created successfully on $ID $VERSION"
+
+
 fi
 }
+
+
+# rhel based os
+default_bridge() {
+echo -e "${CYAN}${BOLD} Configuring RHEL-based Bridge with NetworkManager"
+
+# interface Nmae
+CON_NAME=$(nmcli -t -f NAME,DEVICE connection show | grep ":$IFACE" | cut -d: -f1)
+
+echo -e "${GRAY} Interface Name: $CON_NAME ${NC}"
+
+if [[ -z "$CON_NAME" ]]
+then
+	echo -e "${YELLOW} No NetworkManager connection found for interface $IFACE"
+	exit 1
+fi
+
+echo -e "${GRAY} Creating bridge..."
+if ! nmcli connection add type bridge con-name viifbr0 ifname viifbr0 autoconnect yes; then
+	echo -e "${RED} Failed to create bridge connection"
+	exit 1
+fi
+
+nmcli connection modify viifbr0 ipv4.addresses "$IP_NET" ipv4.gateway "$GW" ipv4.dns '8.8.8.8' ipv4.method manual
+
+if [[ -n "$IPV6_ADDR" ]]
+then
+	nmcli connection modify viifbr0 ipv6.addresses "$IPV6_ADDR" ipv6.gateway "$IPV6_GW" ipv6.method manual ipv6.dns "2001:4860:4860::8888"
+fi
+nmcli connection modify "$CON_NAME" master viifbr0
+nmcli connection modify viifbr0 connection.autoconnect-slaves 1
+
+echo -e "${YELLOW}Bringing up bridge connections...${NC}"
+nmcli connection up viifbr0
+nmcli connection up "$CON_NAME"
+
+
+echo -e "${GREEN} Bridge created successfully on $ID $VERSION"
+}
+
+hetzner_rhel() {
+
+# interface Nmae
+CON_NAME=$(nmcli -t -f NAME,DEVICE connection show | grep ":$IFACE" | cut -d: -f1)
+
+echo -e "${GRAY} Interface Name: $CON_NAME ${NC}"
+
+if [[ -z "$CON_NAME" ]]
+then
+	echo -e "${YELLOW} No NetworkManager connection found for interface $IFACE"
+	exit 1
+fi
+
+echo -e "${GRAY} Creating bridge..."
+if ! nmcli connection add type bridge con-name viifbr0 ifname viifbr0 autoconnect yes; then
+	echo -e "${RED} Failed to create bridge connection"
+	exit 1
+fi
+
+nmcli connection modify viifbr0 ipv4.addresses "$IP/$CIDR" ipv4.gateway "$GW" ipv4.dns '8.8.8.8' ipv4.method manual
+
+if [[ -n "$IPV6_ADDR" ]]
+then
+	nmcli connection modify viifbr0 ipv6.addresses "$IPV6_ADDR" ipv6.gateway "$IPV6_GW" ipv6.method manual ipv6.dns "2001:4860:4860::8888"
+fi
+nmcli connection modify "$CON_NAME" master viifbr0
+nmcli connection modify viifbr0 connection.autoconnect-slaves 1
+
+echo -e "${YELLOW}Bringing up bridge connections...${NC}"
+nmcli connection up viifbr0
+nmcli connection up "$CON_NAME"
+
+
+echo -e "${GREEN} Bridge created successfully on $ID $VERSION"
+
+}
+
+
+# timeout and ping test
+check_connectivity() {
+echo -e "${CYAN}${BOLD} connectivity test..."
+if is_rhel_basedos
+then
+	ROLLBACK_WAIT=${ROLLBACK_WAIT:-30}
+else
+	ROLLBACK_WAIT=${ROLLBACK_WAIT:-15}
+fi
+
+TEST_HOST=${TEST_HOST:-8.8.8.8}
+
+echo -e "${YELLOW}⏳ Waiting ${CYAN}${BOLD} Starting Connectivity Test (${ROLLBACK_WAIT}s Stabilization)"
+sleep "$ROLLBACK_WAIT"
+
+ping -w 5 -c 2 "$TEST_HOST" >/de/null 2>&1
+
+}
+
+
+# Rollback
+rollback() {
+if is_ubuntu
+then
+	BACKUP="/etc/netplan/${NETPLAN}-bak"
+	if [[ ! -f "$BACKUP" ]]
+	then
+		echo -e "${RED} No backup .yaml found - cannot rollback"
+		exit 2
+	fi
+
+	echo -e "${YELLOW}Restoring backup configuration...${NC}"
+	
+	echo -e "${BLUE} Restoring $BACKUP → ${NETPLAN}"
+
+	if cp --archive "$BACKUP" "/etc/netplan/${NETPLAN}"; then
+		echo -e "${GREEN} Configuration file restored"
+		if netplan apply; then
+			echo -e "${GREEN} Netplan configuration applied"
+
+			if ip link delete dev viifbr0 2>/dev/null; then
+				echo -e "${GREEN} Bridge viifbr0 removed"
+			fi
+			rm -rf "$BACKUP"
+			
+			echo -e "${GREEN} Rollback completed successfully"
+		else
+			echo -e "${RED} Failed to apply netplan configuration"
+		fi
+	nmcli connection down viifbr0
+		echo -e "${RED} Failed to restore backup configuration"
+	fi
+
+fi
+
+
+if is_rhel_basedos
+then
+	 echo -e "${YELLOW}Rolling back NetworkManager configuration...${NC}"
+
+	 echo -e "${BLUSE} Bringing down bridge viifbr0"
+	 nmcli connection down viifbr0
+
+	 echo -e "${BLUSE} Removing bridge slave configuration from $CON_NAME"
+	 eval 'nmcli connection modify "${CON_NAME}" connection.master "" connection.slave-type ""'
+
+	 echo -e "${BLUSE} Bringing up the interface $CON_NAME"
+	 nmcli connection up "${CON_NAME}"
+
+	 echo -e "${BLUE} Deleting bridge connection viifbr0"
+	 nmcli connection delete viifbr0
+	 
+	 echo -e "${GREEN} Rollback completed successfully"
+	 exit 2
+fi
+}
+
 
 
