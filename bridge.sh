@@ -57,12 +57,27 @@ is_rhel_basedos() {
 	[[ "$ID" =~ ^(almalinux|rocky|centos)$ ]]
 }
 
+validate_os() {
+
+	if is_ubuntu || is_rhel_basedos
+	then
+		log_success "Supported OS detected: $PRETTY_NAME"
+	else
+		log_error "Unsupported operating system"
+		log_info "Detected OS: $PRETTY_NAME"
+		exit 1
+	fi
+
+}
+
 # checking if the script runs as root
 if [[ $EUID -ne 0 ]]
 then
 	echo -e "${RED}--- The scipt must be run as root ---${NC} "
 	exit 1
 fi
+
+validate_os
 
 # Detect Network Interface and IP netmask and gateway
 IFACE=$(ip route show default | awk '{print $5}')
