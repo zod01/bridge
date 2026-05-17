@@ -49,7 +49,7 @@ The script also includes automatic installation of `ipcalc`, IPv6 support, color
 
 1. **Clone this repository**
    ```bash
-   git clone https://github.com/Xdfx00/bridge.git
+   git clone https://github.com/zod01/bridge.git
    cd bridge
    chmox +x bridge.sh
    ./bridge.sh
