@@ -14,6 +14,27 @@ BOLD="\033[1m"
 DIM="\033[2m"
 NC="\033[0m" # No Color
 
+# Logging Helpers
+log_info() {
+    echo -e "${CYAN}[INFO]${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}[ OK ]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[FAIL]${NC} $1"
+}
+
+log_step() {
+    echo -e "${BLUE}[$1/$2]${NC} $3"
+}
+
 
 # Banner
 clear
@@ -48,11 +69,9 @@ IFACE=$(ip route show default | awk '{print $5}')
 
 if [[ "$IFACE" == "viifbr0" ]]
 then
-	echo -e "${BLUE}--- The bridge interface is already UP/online ---"
+	echo -e "${BLUE}--- The bridge interface is already UP/online ---${NC}"
 	exit 1
 fi
-
-echo -e "${CYAN} Defualt Interface: $IFACE"
 
 IP_NET=$(ip -4 addr show $IFACE | grep inet | grep -v '127.0.0.1' | awk '{print $2}')  # this commmand retrive IP/prefix 
 
@@ -60,9 +79,14 @@ IP=$(ip -4 addr show $IFACE | grep inet | grep -v '127.0.0.1' | awk '{print $2}'
 
 GW=$(ip route show default | awk '{print $3}')
 
+log_info "Detected interface: $IFACE"
+
+log_info "IPv4 address: $IP_NET"
+
+log_info "Gateway: $GW"
 
 # IPv6 check
-echo -e "${CYAN}${BOLD} gathering IPv6 "
+log_step 1 5 "Checking IPv6 configuration"
 IPV6_ADDR=""
 IPV6_GW=""
 
@@ -71,39 +95,41 @@ if [[ -n "$IPV6" ]]
 then
 	IPV6_ADDR=$IPV6
 	IPV6_GW=$(ip -6 route | awk '/default via/ {print $3; exit}')
-	echo -e "${BLUE} IPv6 address: $IPV"
-	echo -e "${BLUE} IPV6 gateway: $IPV_GW"
+	
+	log_success "IPv6 detected"
+	log_info "IPv6 address: $IPV6_ADDR"
+	log_info "IPv6 gateway: $IPV6_GW"
 else
-	echo -e "${YELLOW} IPv6 is not found. "
+	log_warn "IPv6 not detected"
 fi
 
 
 # INstall ipcalc command
-echo -e "${BLUE}--- check if ipcalc is installed ---${NC}"
+log_step 2 5 "Checking ipcalc dependency"
 if ! command -v ipcalc >/dev/null; then
-	echo -e "${GRAY} ipcalc is not installed "
+	log_warn "ipcalc is not installed"
 
 	# Install ipcalc
 	if is_ubuntu
 	then
-		echo -e "${YELLOW} Installing ipcalc.... ${NC}"
+		log_info "Installing ipcalc...."
 		if apt-get update -y && apt-get install ipcalc -y >/dev/null 2>&1; then
-			echo -e "${GREEN} ipcalc is installed "
+			log_success "ipcalc installed successfully"
 		else
-			echo -e "${RED} Failed to install ipcalc! ${NC}"
-			echo -e "${YELLOW}Manual installation required:${NC}"
-			echo -e "  ${DIM}sudo apt-get update && sudo apt-get install ipcalc${NC}"
+			log_error "Failed to install ipcalc!"
+			log_info "Manual installation required:"
+			log_info "sudo apt-get update && sudo apt-get install ipcalc"
 			exit 1
 		fi
 	elif is_rhel_basedos
 	then
-		echo -e "${YELLOW}Installing ipcalc...${NC}"
-		if dnf install ipcalc >/dev/null 2>&1; then
-			echo -e "${GREEN} ipcalc has installed ${NC}"
+		log_info "Installing ipcalc..."
+		if dnf install ipcalc -y >/dev/null 2>&1; then
+			log_success "ipcalc installed successfully"
 		else
-			echo -e "${RED} Failed to install ipcalc ${NIC}"
-			echo -e "${YELLOW}Manual installation required:${NC}"
-			echo -e "  ${DIM}sudo dnf install ipcalc${NC}"
+			log_error "Failed to install ipcalc"
+			log_info "Manual installation required:"
+			log_info "sudo dnf install ipcalc"
 			exit 1
 		fi
 	fi
@@ -378,12 +404,14 @@ fi
 nmcli connection modify "$CON_NAME" master viifbr0
 nmcli connection modify viifbr0 connection.autoconnect-slaves 1
 
-echo -e "${YELLOW}Bringing up bridge connections...${NC}"
+log_warn "Bringing up bridge connections..."
 nmcli connection up viifbr0
+
+log_warn "Bringing UP $CON_NAME"
 nmcli connection up "$CON_NAME"
 
 
-echo -e "${GREEN} Bridge created successfully on $ID $VERSION"
+log_success "Bridge created successfully on $ID $VERSION"
 }
 
 hetzner_rhel() {
@@ -395,13 +423,13 @@ echo -e "${GRAY} Interface Name: $CON_NAME ${NC}"
 
 if [[ -z "$CON_NAME" ]]
 then
-	echo -e "${YELLOW} No NetworkManager connection found for interface $IFACE"
+	log_warn "No NetworkManager connection found for interface $IFACE"
 	exit 1
 fi
 
 echo -e "${GRAY} Creating bridge..."
 if ! nmcli connection add type bridge con-name viifbr0 ifname viifbr0 autoconnect yes; then
-	echo -e "${RED} Failed to create bridge connection"
+	log_error "Failed to create bridge connection"
 	exit 1
 fi
 
@@ -414,19 +442,21 @@ fi
 nmcli connection modify "$CON_NAME" master viifbr0
 nmcli connection modify viifbr0 connection.autoconnect-slaves 1
 
-echo -e "${YELLOW}Bringing up bridge connections...${NC}"
+log_warn "Bringing up bridge connections..."
 nmcli connection up viifbr0
+
+log_warn "Bringing UP $CON_NAME"
 nmcli connection up "$CON_NAME"
 
 
-echo -e "${GREEN} Bridge created successfully on $ID $VERSION"
+log_success "Bridge created successfully on $ID $VERSION"
 
 }
 
 
 # timeout and ping test
 check_connectivity() {
-echo -e "${CYAN}${BOLD} connectivity test..."
+log_step 4 5 "Testing connectivity"
 if is_rhel_basedos
 then
 	ROLLBACK_WAIT=${ROLLBACK_WAIT:-30}
@@ -436,16 +466,23 @@ fi
 
 TEST_HOST=${TEST_HOST:-8.8.8.8}
 
-echo -e "${YELLOW}⏳ Waiting ${CYAN}${BOLD} Starting Connectivity Test (${ROLLBACK_WAIT}s Stabilization)"
+log_info "Waiting ${ROLLBACK_WAIT}s for network stabilization"
 sleep "$ROLLBACK_WAIT"
 
-ping -w 5 -c 2 "$TEST_HOST" >/de/null 2>&1
-
+if ping -w 5 -c 2 "$TEST_HOST" >/dev/null 2>&1
+then
+	log_success "Connectivity test passed"
+	return 0
+else
+	log_error "Connectivity test failed"
+	return 1
+fi
 }
 
 
 # Rollback
 rollback() {
+log_warn "Starting automatic rollback"
 if is_ubuntu
 then
 	BACKUP="/etc/netplan/${NETPLAN}-bak"
@@ -455,26 +492,26 @@ then
 		exit 2
 	fi
 
-	echo -e "${YELLOW}Restoring backup configuration...${NC}"
+	log_warn "Restoring backup configuration"
 	
-	echo -e "${BLUE} Restoring $BACKUP → ${NETPLAN}"
+	log_info "Restoring ${NETPLAN}-bak"
 
 	if cp --archive "$BACKUP" "/etc/netplan/${NETPLAN}"; then
 		echo -e "${GREEN} Configuration file restored"
 		if netplan apply; then
-			echo -e "${GREEN} Netplan configuration applied"
+			log_success "Netplan applied successfully"
 
 			if ip link delete dev viifbr0 2>/dev/null; then
 				echo -e "${GREEN} Bridge viifbr0 removed"
 			fi
 			rm -rf "$BACKUP"
 			
-			echo -e "${GREEN} Rollback completed successfully"
+			log_success "Rollback completed successfully"
 		else
-			echo -e "${RED} Failed to apply netplan configuration"
+			log_error "Failed to apply netplan configuration"
 		fi
-	nmcli connection down viifbr0
-		echo -e "${RED} Failed to restore backup configuration"
+	else
+		log_error "Failed to restore backup configuration "
 	fi
 
 fi
@@ -482,24 +519,78 @@ fi
 
 if is_rhel_basedos
 then
-	 echo -e "${YELLOW}Rolling back NetworkManager configuration...${NC}"
+	 log_warn "Rolling back NetworkManager configuration..."
 
-	 echo -e "${BLUSE} Bringing down bridge viifbr0"
+	 log_info "Bringing down bridge viifbr0"
 	 nmcli connection down viifbr0
 
-	 echo -e "${BLUSE} Removing bridge slave configuration from $CON_NAME"
+	 log_info "Removing bridge slave configuration from $CON_NAME"
 	 eval 'nmcli connection modify "${CON_NAME}" connection.master "" connection.slave-type ""'
 
-	 echo -e "${BLUSE} Bringing up the interface $CON_NAME"
+	 log_info "Bringing up the interface $CON_NAME"
 	 nmcli connection up "${CON_NAME}"
 
-	 echo -e "${BLUE} Deleting bridge connection viifbr0"
+	 log_info "Deleting bridge connection viifbr0"
 	 nmcli connection delete viifbr0
 	 
-	 echo -e "${GREEN} Rollback completed successfully"
+	 log_success "Rollback completed successfully"
 	 exit 2
 fi
 }
 
 
+# 
+if is_ubuntu
+then
+	case "$PROVIDER" in
+		hetzner)
+			hetzner
+			;;
+		ovh)
+			ovh
+			;;
+		*)
+			setup_bridge_ubuntu
+			;;
+	esac
+elif is_rhel_basedos
+then
+	case "$PROVIDER" in
+		hetzner)
+			hetzner_rhel
+			;;
+		*)
+			default_bridge
+			;;
+	esac
+fi
 
+
+# rollnback
+if check_connectivity
+then
+	print_box_line() {
+    printf "${GREEN}║ %-52s ║${NC}\n" "$1"
+}
+
+
+echo ""
+echo -e "${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
+
+print_box_line "✓ Bridge Configuration Successful"
+print_box_line ""
+print_box_line "Bridge Name: viifbr0"
+print_box_line "Physical Interface: $IFACE"
+print_box_line "IP Address: $IP_NET"
+print_box_line "Gateway: $GW"
+print_box_line "Provider: $ISP"
+print_box_line ""
+print_box_line "Status: ONLINE"
+
+echo -e "${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
+
+echo ""
+log_success "Bridge viifbr0 is ready for use"
+else
+	rollback
+fi
