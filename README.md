@@ -34,7 +34,6 @@ The script also includes automatic installation of `ipcalc`, IPv6 support, color
 ✅ Supports:
 - Dual-stack (IPv4 + IPv6)  
 - Custom CIDR/Netmask entry for Hetzner servers  
-- Color-coded, readable output  
 
 ---
 
