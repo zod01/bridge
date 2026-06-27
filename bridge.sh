@@ -52,7 +52,8 @@ is_ubuntu() {
 }
 
 is_rhel_basedos() {
-  [[ "$ID" =~ ^(almalinux|rocky|centos)$ ]] && [[ "$VERSION_ID" -ge 8 ]]
+  local major_version="${VERSION_ID%%.*}"
+  [[ "$ID" =~ ^(almalinux|rocky|centos)$ ]] && [[ "$major_version" -ge 8 ]]
 }
 
 validate_os() {
@@ -570,3 +571,5 @@ if check_connectivity; then
 else
   rollback
 fi
+
+history -r
