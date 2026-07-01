@@ -52,7 +52,7 @@ is_ubuntu() {
 }
 
 is_rhel_basedos() {
-  local major_version="${VERSION_ID%%.*}"
+  major_version="${VERSION_ID%%.*}"
   [[ "$ID" =~ ^(almalinux|rocky|centos)$ ]] && [[ "$major_version" -ge 8 ]]
 }
 
@@ -534,7 +534,7 @@ if is_ubuntu; then
     setup_bridge_ubuntu
     ;;
   esac
-elif is_rhel_basedos && [[ "$VERSION_ID" -ge 8 ]]; then
+elif is_rhel_basedos && [[ "$major_version" -ge 8 ]]; then
   case "$PROVIDER" in
   hetzner)
     hetzner_rhel
