@@ -448,7 +448,7 @@ hetzner_rhel() {
 check_connectivity() {
   log_step 4 5 "Testing connectivity"
   if is_rhel_basedos; then
-    ROLLBACK_WAIT=${ROLLBACK_WAIT:-30}
+    ROLLBACK_WAIT=${ROLLBACK_WAIT:-45}
   else
     ROLLBACK_WAIT=${ROLLBACK_WAIT:-15}
   fi
